@@ -58,7 +58,7 @@ const MOOD_LABELS = Object.freeze({
  * @returns {string} The HTML-safe string.
  */
 function escapeHtml(s) {
-  const str = String(s == null ? "" : s);
+  const str = String(s === null || s === undefined ? "" : s);
   if (str.length === 0) return str;
   return str.replace(
     /[&<>"']/g,
@@ -339,6 +339,7 @@ if (typeof module !== "undefined" && module.exports) {
 /* ================================================================
    Browser wiring — only runs in a document context
    ================================================================ */
+/* istanbul ignore next */
 if (typeof document !== "undefined") {
   /**
    * Cache all frequently-accessed DOM elements once at startup to
@@ -693,7 +694,7 @@ if (typeof document !== "undefined") {
     frag.appendChild(container);
 
     /* Clear and append in one operation to minimise reflows. */
-    el.support.innerHTML = "";
+    el.support.textContent = "";
     el.support.appendChild(frag);
     el.support.hidden = false;
     el.support.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -708,7 +709,7 @@ if (typeof document !== "undefined") {
     el.streakNum.textContent = String(currentStreak(entries));
     el.checkinNum.textContent = String(entries.length);
     const avg = averageMood(entries);
-    el.avgMood.textContent = avg == null ? "–" : String(avg);
+    el.avgMood.textContent = (avg === null || avg === undefined) ? "–" : String(avg);
 
     /* Update greeting. */
     if (el.greeting) {
@@ -786,13 +787,13 @@ if (typeof document !== "undefined") {
     const recent = entries.slice(-MAX_CHART_ENTRIES);
 
     /* Full chart */
-    el.chart.innerHTML = "";
+    el.chart.textContent = "";
     el.chart.appendChild(buildChartFragment(recent));
 
     /* Dashboard mini-chart */
     if (el.dashChart && el.dashChartBars) {
       el.dashChart.hidden = false;
-      el.dashChartBars.innerHTML = "";
+      el.dashChartBars.textContent = "";
       el.dashChartBars.appendChild(buildChartFragment(recent));
     }
 
@@ -839,7 +840,7 @@ if (typeof document !== "undefined") {
       }
     }
 
-    el.triggerStats.innerHTML = "";
+    el.triggerStats.textContent = "";
     el.triggerStats.appendChild(triggerFrag);
   }
 

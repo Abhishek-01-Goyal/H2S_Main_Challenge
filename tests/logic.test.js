@@ -35,21 +35,23 @@ let pass = 0;
 let fail = 0;
 
 /**
- * Run a single test case, printing the result to stdout.
+ * Run a single test case, printing the result to stdout if running directly.
  *
  * @param {string} name - Descriptive name for the test.
  * @param {Function} fn - Test body (should throw on failure).
  */
-const test = (name, fn) => {
-  try {
-    fn();
-    pass++;
-    console.log("  \u2713 " + name);
-  } catch (e) {
-    fail++;
-    console.log("  \u2717 " + name + "\n      " + e.message);
-  }
-};
+if (typeof global.test === "undefined") {
+  global.test = (name, fn) => {
+    try {
+      fn();
+      pass++;
+      console.log("  \u2713 " + name);
+    } catch (e) {
+      fail++;
+      console.log("  \u2717 " + name + "\n      " + e.message);
+    }
+  };
+}
 
 /* ================================================================
    escapeHtml
@@ -485,5 +487,7 @@ test("DEBOUNCE_MS is a positive number", () => {
 /* ================================================================
    Summary
    ================================================================ */
-console.log(`\n${pass} passed, ${fail} failed\n`);
-process.exit(fail ? 1 : 0);
+if (process.env.JEST_WORKER_ID === undefined) {
+  console.log(`\n${pass} passed, ${fail} failed\n`);
+  process.exit(fail ? 1 : 0);
+}

@@ -803,3 +803,8 @@ footer {
   .chip[aria-pressed="true"] { border: 3px solid LinkText; }
   .bar-fill { forced-color-adjust: none; background: LinkText; }
 }
+
+#noInsights {
+  text-align: center;
+  padding: 40px 0;
+}
