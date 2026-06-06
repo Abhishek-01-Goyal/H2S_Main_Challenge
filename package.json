@@ -1,0 +1,11 @@
+{
+  "name": "steady-wellness-tracker",
+  "version": "1.0.0",
+  "description": "Steady — a calm mental wellness tracker for students during board exams and competitive entrance tests (NEET, JEE, CUET, CAT, GATE, UPSC). Track mood, identify stress triggers, reflect, and get personalized AI support.",
+  "main": "app.js",
+  "scripts": {
+    "test": "node tests/logic.test.js"
+  },
+  "keywords": ["mental-health", "wellness", "students", "exam-stress", "ai", "gemini", "mood-tracker"],
+  "license": "MIT"
+}

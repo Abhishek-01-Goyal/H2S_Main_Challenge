@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Steady — a calm mental wellness tracker for students facing board exams, NEET, JEE, CUET, CAT, GATE and UPSC. Track your mood, spot stress triggers, reflect, and get personalized support.">
+<title>Steady — Mental Wellness for Exam Season</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a href="#main" class="skip">Skip to content</a>
+<div class="aurora" aria-hidden="true"></div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="logo">Steady</span>
+    </div>
+    <p class="tagline">A calm corner for exam season</p>
+  </header>
+
+  <main id="main">
+    <!-- HERO / STREAK -->
+    <section class="hero" aria-label="Your wellness overview">
+      <div class="hero-text">
+        <h1>How are you,<br><em>right now?</em></h1>
+        <p class="lede">Board exams, NEET, JEE, CAT, GATE, UPSC — the pressure is real. Take 30 seconds to check in. No judgement, just a little clarity.</p>
+      </div>
+      <div class="stats" role="group" aria-label="Your progress">
+        <div class="stat"><span class="stat-num" id="streakNum">0</span><span class="stat-lbl">day streak</span></div>
+        <div class="stat"><span class="stat-num" id="checkinNum">0</span><span class="stat-lbl">check-ins</span></div>
+        <div class="stat"><span class="stat-num" id="avgMood">–</span><span class="stat-lbl">avg mood</span></div>
+      </div>
+    </section>
+
+    <!-- CHECK-IN -->
+    <section class="card" aria-labelledby="ci-title">
+      <h2 id="ci-title">Today's check-in</h2>
+
+      <fieldset class="moods">
+        <legend>How's your mood?</legend>
+        <div class="mood-row" id="moodRow" role="radiogroup" aria-label="Select your mood from 1 to 5">
+          <button type="button" class="mood" role="radio" aria-checked="false" data-mood="1" aria-label="Struggling"><span aria-hidden="true">😣</span><small>Struggling</small></button>
+          <button type="button" class="mood" role="radio" aria-checked="false" data-mood="2" aria-label="Low"><span aria-hidden="true">😔</span><small>Low</small></button>
+          <button type="button" class="mood" role="radio" aria-checked="false" data-mood="3" aria-label="Okay"><span aria-hidden="true">😐</span><small>Okay</small></button>
+          <button type="button" class="mood" role="radio" aria-checked="false" data-mood="4" aria-label="Good"><span aria-hidden="true">🙂</span><small>Good</small></button>
+          <button type="button" class="mood" role="radio" aria-checked="false" data-mood="5" aria-label="Great"><span aria-hidden="true">😄</span><small>Great</small></button>
+        </div>
+      </fieldset>
+
+      <fieldset class="triggers">
+        <legend>What's weighing on you? <span class="muted">(pick any)</span></legend>
+        <div class="chips" id="triggerChips" role="group" aria-label="Stress triggers">
+          <button type="button" class="chip" aria-pressed="false">Exam pressure</button>
+          <button type="button" class="chip" aria-pressed="false">Lack of sleep</button>
+          <button type="button" class="chip" aria-pressed="false">Comparison with peers</button>
+          <button type="button" class="chip" aria-pressed="false">Fear of results</button>
+          <button type="button" class="chip" aria-pressed="false">Family expectations</button>
+          <button type="button" class="chip" aria-pressed="false">Self-doubt</button>
+          <button type="button" class="chip" aria-pressed="false">Time management</button>
+          <button type="button" class="chip" aria-pressed="false">Burnout</button>
+          <button type="button" class="chip" aria-pressed="false">Uncertainty</button>
+        </div>
+      </fieldset>
+
+      <div class="field">
+        <label for="journal">Want to reflect? Write it out <span class="muted">(optional)</span></label>
+        <textarea id="journal" rows="3" placeholder="Whatever's on your mind. This stays on your device."></textarea>
+      </div>
+
+      <button type="button" class="primary" id="checkInBtn">Check in &amp; get support →</button>
+      <p class="err" id="err" role="alert"></p>
+    </section>
+
+    <!-- AI SUPPORT OUTPUT -->
+    <section class="card support" id="support" aria-live="polite" aria-label="Personalized wellness support" hidden></section>
+
+    <div class="loader" id="loader" role="status" aria-live="polite" hidden>
+      <div class="breathe" aria-hidden="true"></div>
+      <p id="loadMsg">Taking that in…</p>
+    </div>
+
+    <!-- INSIGHTS -->
+    <section class="card" id="insights" aria-labelledby="in-title" hidden>
+      <h2 id="in-title">Your patterns</h2>
+      <div class="insight-grid">
+        <div>
+          <h3>Mood over time</h3>
+          <div class="chart" id="chart" role="img" aria-label="A line chart of your recent mood scores"></div>
+        </div>
+        <div>
+          <h3>Top stress triggers</h3>
+          <ul class="trigger-stats" id="triggerStats"></ul>
+        </div>
+      </div>
+      <button type="button" class="ghost" id="clearBtn">Clear my history</button>
+    </section>
+
+    <!-- SUPPORT / CRISIS RESOURCES (always visible) -->
+    <section class="card help" aria-labelledby="help-title">
+      <h2 id="help-title">If things feel heavy, you're not alone</h2>
+      <p>Steady is a self-reflection tool, not a substitute for professional care. If you're in distress, please reach out — talking to someone helps.</p>
+      <ul class="resources">
+        <li><strong>Tele-MANAS</strong> (Govt. of India, 24/7): <a href="tel:14416">14416</a> or <a href="tel:18008914416">1-800-891-4416</a></li>
+        <li><strong>KIRAN Mental Health Helpline</strong>: <a href="tel:18005990019">1800-599-0019</a></li>
+        <li><strong>iCall</strong> (TISS, Mon–Sat): <a href="tel:9152987821">9152987821</a></li>
+        <li>If you feel unsafe or are thinking of harming yourself, please contact a trusted adult or emergency services immediately.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>Built for PromptWars · Powered by Gemini · Your data stays on your device</p>
+  </footer>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
