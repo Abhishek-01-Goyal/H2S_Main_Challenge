@@ -22,6 +22,7 @@ const {
   buildPrompt,
   sanitizeText,
   getGreeting,
+  getFallbackSupport,
   MOOD_LABELS,
   MOOD_MIN,
   MOOD_MAX,
@@ -397,6 +398,57 @@ test("returns late-night greeting after 9 PM", () => {
 test("returns early-morning greeting before 5 AM", () => {
   const result = getGreeting(new Date("2026-06-06T03:00:00"));
   assert.ok(result.length > 0, "should return a non-empty greeting");
+});
+
+/* ================================================================
+   getFallbackSupport
+   ================================================================ */
+console.log("\ngetFallbackSupport");
+
+test("tailors reflection based on low mood", () => {
+  const res = getFallbackSupport({ mood: 1, triggers: [] });
+  assert.ok(res.reflection.includes("courage") || res.reflection.includes("tough day"), "should support low mood");
+  assert.strictEqual(res.concern, false);
+});
+
+test("tailors reflection based on neutral mood", () => {
+  const res = getFallbackSupport({ mood: 3, triggers: [] });
+  assert.ok(res.reflection.includes("neutral") || res.reflection.includes("steady center"), "should support neutral mood");
+});
+
+test("tailors reflection based on high mood", () => {
+  const res = getFallbackSupport({ mood: 5, triggers: [] });
+  assert.ok(res.reflection.includes("high spirits") || res.reflection.includes("positive"), "should support high mood");
+});
+
+test("tailors actions based on exam pressure trigger", () => {
+  const res = getFallbackSupport({ mood: 3, triggers: ["Exam pressure"] });
+  assert.ok(res.actions.some(a => a.includes("breathing") || a.includes("topics")), "should give study/breath suggestions");
+  assert.strictEqual(res.actions.length, 3);
+});
+
+test("tailors actions based on lack of sleep trigger", () => {
+  const res = getFallbackSupport({ mood: 3, triggers: ["Lack of sleep"] });
+  assert.ok(res.actions.some(a => a.includes("rest") || a.includes("stretch")), "should give sleep/rest suggestions");
+  assert.strictEqual(res.actions.length, 3);
+});
+
+test("tailors actions based on distractions trigger", () => {
+  const res = getFallbackSupport({ mood: 3, triggers: ["Distractions"] });
+  assert.ok(res.actions.some(a => a.includes("timer") || a.includes("phone")), "should give focus suggestions");
+  assert.strictEqual(res.actions.length, 3);
+});
+
+test("tailors actions based on peer pressure trigger", () => {
+  const res = getFallbackSupport({ mood: 3, triggers: ["Peer pressure"] });
+  assert.ok(res.actions.some(a => a.includes("chat") || a.includes("pace")), "should give social/perspective suggestions");
+  assert.strictEqual(res.actions.length, 3);
+});
+
+test("always returns exactly 3 actions", () => {
+  const res = getFallbackSupport({ mood: 3, triggers: ["Non-existent trigger"] });
+  assert.strictEqual(res.actions.length, 3);
+  assert.ok(typeof res.affirmation === "string");
 });
 
 /* ================================================================

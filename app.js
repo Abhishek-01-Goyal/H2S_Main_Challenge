@@ -232,6 +232,86 @@ Respond with ONLY valid JSON (no markdown, no backticks):
 Keep it real and student-friendly, not preachy. If concern is true, your reflection should gently, non-alarmingly encourage talking to someone they trust.`;
 }
 
+/**
+ * Generate a personalized, dynamic fallback response client-side if the
+ * serverless function fails or is unavailable.
+ *
+ * @param {{mood?: number, triggers?: string[], journal?: string}} entry - The check-in entry.
+ * @returns {{reflection: string, actions: string[], affirmation: string, concern: boolean}}
+ */
+function getFallbackSupport(entry) {
+  const mood = Number(entry?.mood) || 3;
+  const triggers = entry?.triggers || [];
+
+  /* Tailor the reflection based on the mood level */
+  let reflection = "";
+  if (mood <= 2) {
+    reflection = "Acknowledging a tough day takes courage. Remember that feeling overwhelmed during intense exam prep is a very natural response, and you don't have to face it alone.";
+  } else if (mood === 3) {
+    reflection = "Checking in on a neutral day is a great habit. Finding your steady center amidst the daily grind is a quiet win — keep pacing yourself.";
+  } else {
+    reflection = "It's wonderful to see you in high spirits! Riding this positive wave while keeping your energy balanced will help you stay steady.";
+  }
+
+  /* Map triggers to specific actionable recommendations */
+  const actionPool = [];
+  const triggerSet = new Set(triggers);
+
+  if (triggerSet.has("Exam pressure") || triggerSet.has("Self-doubt")) {
+    actionPool.push("Write down 1 or 2 small topics you already know well to remind yourself of your capabilities.");
+    actionPool.push("Try box breathing: inhale for 4 seconds, hold for 4, exhale for 4, hold for 4.");
+  }
+  if (triggerSet.has("Lack of sleep") || triggerSet.has("Exhaustion")) {
+    actionPool.push("Step away from all screens and close your eyes for a 15-minute quiet rest.");
+    actionPool.push("Gently stretch your neck, shoulders, and wrists to relieve physical tension.");
+  }
+  if (triggerSet.has("Procrastination") || triggerSet.has("Distractions")) {
+    actionPool.push("Set a timer for just 10 minutes of focused reading to break the friction of starting.");
+    actionPool.push("Place your phone in another room or turn on Do Not Disturb mode during this study block.");
+  }
+  if (triggerSet.has("Loneliness") || triggerSet.has("Peer pressure")) {
+    actionPool.push("Reach out to a trusted classmate or family member for a quick 5-minute chat.");
+    actionPool.push("Remind yourself that everyone's preparation journey moves at its own unique pace.");
+  }
+
+  /* Add fallback actions if we don't have enough specific ones */
+  const defaultActions = [
+    "Drink a tall glass of water and stretch your body.",
+    "Take three slow, deep breaths, letting your shoulders drop completely.",
+    "Step outside or look out a window to change your visual environment.",
+    "Write down one single task you can easily complete in the next 15 minutes."
+  ];
+
+  const actions = [];
+  // Use specific actions first
+  for (let i = 0; i < actionPool.length && actions.length < 3; i++) {
+    actions.push(actionPool[i]);
+  }
+  // Fill the rest with defaults
+  for (let i = 0; i < defaultActions.length && actions.length < 3; i++) {
+    if (!actions.includes(defaultActions[i])) {
+      actions.push(defaultActions[i]);
+    }
+  }
+
+  /* Select an appropriate affirmation */
+  let affirmation = "You are more than any exam result.";
+  if (mood <= 2) {
+    affirmation = "One step, one breath at a time. You are doing the best you can.";
+  } else if (triggerSet.has("Exam pressure")) {
+    affirmation = "Your worth as a person is not defined by a test score.";
+  } else if (mood >= 4) {
+    affirmation = "Appreciate your progress and celebrate the small steps today.";
+  }
+
+  return {
+    reflection,
+    actions,
+    affirmation,
+    concern: false,
+  };
+}
+
 /* ================================================================
    Node export for tests
    ================================================================ */
@@ -246,6 +326,7 @@ if (typeof module !== "undefined" && module.exports) {
     buildPrompt,
     sanitizeText,
     getGreeting,
+    getFallbackSupport,
     MOOD_LABELS,
     MOOD_MIN,
     MOOD_MAX,
@@ -468,18 +549,7 @@ if (typeof document !== "undefined") {
     "Finding something useful…",
   ]);
 
-  /** Fallback support response if the AI call fails. */
-  const FALLBACK_SUPPORT = Object.freeze({
-    reflection:
-      "Thanks for checking in — that takes honesty. Whatever the score, your effort today still counts.",
-    actions: Object.freeze([
-      "Step away from your desk for 5 minutes and stretch.",
-      "Drink a glass of water and take 3 slow breaths.",
-      "Write down one small thing you got done today.",
-    ]),
-    affirmation: "You are more than any exam result.",
-    concern: false,
-  });
+
 
   /**
    * Handle a check-in submission. Validates input, persists the
@@ -559,7 +629,7 @@ if (typeof document !== "undefined") {
       renderSupport(extractJson(text || ""));
     } catch (err) {
       console.error("[Steady] AI call failed:", err?.message || err);
-      renderSupport(FALLBACK_SUPPORT);
+      renderSupport(getFallbackSupport(entry));
     } finally {
       clearInterval(ticker);
       el.loader.hidden = true;
