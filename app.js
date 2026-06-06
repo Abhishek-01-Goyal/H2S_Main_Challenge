@@ -1,11 +1,15 @@
 /**
- * Steady — Mental Wellness Tracker for exam season
- * Pure logic + Gemini integration + localStorage persistence.
+ * Steady — Mental Wellness Tracker for exam season.
  *
- * SETUP: paste your free Gemini key below (https://aistudio.google.com/apikey)
+ * Architecture:
+ *   - Pure, side-effect-free logic (escapeHtml, averageMood, currentStreak,
+ *     topTriggers, extractJson, buildPrompt) — fully unit-tested.
+ *   - A thin browser layer that wires the DOM, persists check-ins to
+ *     localStorage, and renders insights.
+ *   - AI support is fetched from the /api/generate serverless function, which
+ *     holds the Gemini key server-side (Vercel env var GEMINI_API_KEY) so it
+ *     never reaches the repo or the browser.
  */
-// The Gemini key lives server-side in the /api/generate serverless function
-// (set via Vercel env var GEMINI_API_KEY) — never in this file or the browser.
 const API_ENDPOINT = "/api/generate";
 const STORAGE_KEY = "steady.entries.v1";
 
@@ -108,67 +112,109 @@ if (typeof module !== "undefined" && module.exports) {
 
 /* ---------------- Browser wiring ---------------- */
 if (typeof document !== "undefined") {
-  const $ = (id) => document.getElementById(id);
-  let selectedMood = null;
+  // Cache element references once instead of re-querying the DOM on every render.
+  const el = {
+    moods: [...document.querySelectorAll(".mood")],
+    chips: [...document.querySelectorAll("#triggerChips .chip")],
+    err: document.getElementById("err"),
+    journal: document.getElementById("journal"),
+    checkInBtn: document.getElementById("checkInBtn"),
+    clearBtn: document.getElementById("clearBtn"),
+    support: document.getElementById("support"),
+    loader: document.getElementById("loader"),
+    loadMsg: document.getElementById("loadMsg"),
+    insights: document.getElementById("insights"),
+    chart: document.getElementById("chart"),
+    triggerStats: document.getElementById("triggerStats"),
+    streakNum: document.getElementById("streakNum"),
+    checkinNum: document.getElementById("checkinNum"),
+    avgMood: document.getElementById("avgMood"),
+  };
 
-  const loadEntries = () => {
+  let selectedMood = null;
+  // In-memory source of truth; persisted to localStorage on every mutation.
+  let entries = readStore();
+
+  function readStore() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
     catch { return []; }
-  };
-  const saveEntries = (e) => localStorage.setItem(STORAGE_KEY, JSON.stringify(e));
+  }
+  function writeStore() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  }
 
-  // mood radios
-  document.querySelectorAll(".mood").forEach((b) => {
-    b.addEventListener("click", () => {
-      document.querySelectorAll(".mood").forEach((x) => x.setAttribute("aria-checked", "false"));
-      b.setAttribute("aria-checked", "true");
-      selectedMood = Number(b.dataset.mood);
-      $("err").textContent = "";
+  // Mood selection (single radio group).
+  el.moods.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      el.moods.forEach((m) => m.setAttribute("aria-checked", "false"));
+      btn.setAttribute("aria-checked", "true");
+      selectedMood = Number(btn.dataset.mood);
+      el.err.textContent = "";
     });
   });
 
-  // trigger chips
-  document.querySelectorAll("#triggerChips .chip").forEach((c) => {
-    c.addEventListener("click", () =>
-      c.setAttribute("aria-pressed", c.getAttribute("aria-pressed") === "true" ? "false" : "true")
-    );
+  // Trigger toggles.
+  el.chips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const on = chip.getAttribute("aria-pressed") === "true";
+      chip.setAttribute("aria-pressed", String(!on));
+    });
   });
 
-  $("checkInBtn").addEventListener("click", checkIn);
-  $("clearBtn").addEventListener("click", () => {
+  el.checkInBtn.addEventListener("click", checkIn);
+  el.clearBtn.addEventListener("click", () => {
     if (confirm("Clear all your check-in history from this device?")) {
+      entries = [];
       localStorage.removeItem(STORAGE_KEY);
-      renderInsights();
-      $("insights").hidden = true;
+      el.insights.hidden = true;
+      renderStats();
     }
   });
 
-  const loadMsgs = ["Taking that in…", "Thinking it through with care…", "Finding something useful…"];
+  const LOAD_MSGS = ["Taking that in…", "Thinking it through with care…", "Finding something useful…"];
+  const FALLBACK_SUPPORT = {
+    reflection:
+      "Thanks for checking in — that takes honesty. Whatever the score, your effort today still counts.",
+    actions: [
+      "Step away from your desk for 5 minutes and stretch.",
+      "Drink a glass of water and take 3 slow breaths.",
+      "Write down one small thing you got done today.",
+    ],
+    affirmation: "You are more than any exam result.",
+    concern: false,
+  };
 
   async function checkIn() {
     if (!selectedMood) {
-      $("err").textContent = "Pick how you're feeling first — even a rough guess is fine.";
+      el.err.textContent = "Pick how you're feeling first — even a rough guess is fine.";
       return;
     }
-    const triggers = [...document.querySelectorAll('#triggerChips .chip[aria-pressed="true"]')].map(
-      (c) => c.textContent
-    );
-    const journal = $("journal").value.trim();
-    const entry = { date: toISO(new Date()), mood: selectedMood, triggers, journal, ts: Date.now() };
 
-    // persist immediately so streak/chart feel real even if AI fails
-    const entries = loadEntries();
+    const triggers = el.chips
+      .filter((c) => c.getAttribute("aria-pressed") === "true")
+      .map((c) => c.textContent);
+    const entry = {
+      date: toISO(new Date()),
+      mood: selectedMood,
+      triggers,
+      journal: el.journal.value.trim(),
+      ts: Date.now(),
+    };
+
+    // Persist first so streak/chart stay accurate even if the AI call fails.
     entries.push(entry);
-    saveEntries(entries);
+    writeStore();
     renderStats();
     renderInsights();
 
-    $("checkInBtn").disabled = true;
-    $("err").textContent = "";
-    $("support").hidden = true;
-    $("loader").hidden = false;
+    el.checkInBtn.disabled = true;
+    el.err.textContent = "";
+    el.support.hidden = true;
+    el.loader.hidden = false;
     let i = 0;
-    const ti = setInterval(() => ($("loadMsg").textContent = loadMsgs[(i = (i + 1) % loadMsgs.length)]), 1500);
+    const ticker = setInterval(() => {
+      el.loadMsg.textContent = LOAD_MSGS[(i = (i + 1) % LOAD_MSGS.length)];
+    }, 1500);
 
     try {
       const res = await fetch(API_ENDPOINT, {
@@ -177,27 +223,15 @@ if (typeof document !== "undefined") {
         body: JSON.stringify({ prompt: buildPrompt(entry) }),
       });
       if (!res.ok) throw new Error("Request failed (" + res.status + ")");
-      const data = await res.json();
-      const text = data.text || "";
-      renderSupport(extractJson(text));
-    } catch (e) {
-      // graceful fallback so the demo never shows a dead end
-      renderSupport({
-        reflection:
-          "Thanks for checking in — that takes honesty. Whatever the score, your effort today still counts.",
-        actions: [
-          "Step away from your desk for 5 minutes and stretch.",
-          "Drink a glass of water and take 3 slow breaths.",
-          "Write down one small thing you got done today.",
-        ],
-        affirmation: "You are more than any exam result.",
-        concern: false,
-      });
-      console.error(e);
+      const { text } = await res.json();
+      renderSupport(extractJson(text || ""));
+    } catch (err) {
+      console.error(err);
+      renderSupport(FALLBACK_SUPPORT); // never leave the user at a dead end
     } finally {
-      clearInterval(ti);
-      $("loader").hidden = true;
-      $("checkInBtn").disabled = false;
+      clearInterval(ticker);
+      el.loader.hidden = true;
+      el.checkInBtn.disabled = false;
     }
   }
 
@@ -206,55 +240,55 @@ if (typeof document !== "undefined") {
     const concernNote = s.concern
       ? `<div class="affirm" style="border-color:rgba(232,153,168,.4);background:rgba(232,153,168,.1)">It sounds like things feel really heavy right now. You don't have to carry this alone — talking to someone you trust, or one of the helplines below, can genuinely help.</div>`
       : "";
-    $("support").innerHTML = `
+    el.support.innerHTML = `
       <p class="warm-line">${escapeHtml(s.reflection || "")}</p>
       <h3>A few small things you could try</h3>
       <ul class="acts">${actions}</ul>
       ${s.affirmation ? `<div class="affirm">“${escapeHtml(s.affirmation)}”</div>` : ""}
       ${concernNote}
     `;
-    $("support").hidden = false;
-    $("support").scrollIntoView({ behavior: "smooth", block: "center" });
+    el.support.hidden = false;
+    el.support.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   function renderStats() {
-    const e = loadEntries();
-    $("streakNum").textContent = currentStreak(e);
-    $("checkinNum").textContent = e.length;
-    const avg = averageMood(e);
-    $("avgMood").textContent = avg == null ? "–" : avg;
+    el.streakNum.textContent = currentStreak(entries);
+    el.checkinNum.textContent = entries.length;
+    const avg = averageMood(entries);
+    el.avgMood.textContent = avg == null ? "–" : avg;
   }
 
   function renderInsights() {
-    const e = loadEntries();
-    if (!e.length) { $("insights").hidden = true; return; }
-    $("insights").hidden = false;
+    if (!entries.length) {
+      el.insights.hidden = true;
+      return;
+    }
+    el.insights.hidden = false;
 
-    // mood chart — last 7 entries
-    const recent = e.slice(-7);
-    $("chart").innerHTML = recent
+    // Mood trend — last 7 check-ins.
+    el.chart.innerHTML = entries
+      .slice(-7)
       .map((x) => {
         const pct = (Number(x.mood) / 5) * 100;
-        const d = new Date(x.ts || x.date);
-        const lbl = d.toLocaleDateString(undefined, { weekday: "short" });
-        return `<div class="bar-col"><div class="bar-fill" style="height:${pct}%" title="${MOOD_LABELS[x.mood]}"></div><span class="bar-day">${lbl}</span></div>`;
+        const lbl = new Date(x.ts || x.date).toLocaleDateString(undefined, { weekday: "short" });
+        return `<div class="bar-col"><div class="bar-fill" style="height:${pct}%" title="${escapeHtml(MOOD_LABELS[x.mood] || "")}"></div><span class="bar-day">${lbl}</span></div>`;
       })
       .join("");
 
-    // top triggers
-    const tops = topTriggers(e, 5);
+    // Most frequent stress triggers.
+    const tops = topTriggers(entries, 5);
     const max = tops.length ? tops[0].count : 1;
-    $("triggerStats").innerHTML = tops.length
+    el.triggerStats.innerHTML = tops.length
       ? tops
-          .map(
-            (t) =>
-              `<li><span class="tname">${escapeHtml(t.name)}</span><span class="tbar"><i style="width:${(t.count / max) * 100}%"></i></span><span class="tcount">${t.count}</span></li>`
-          )
-          .join("")
+        .map(
+          (t) =>
+            `<li><span class="tname">${escapeHtml(t.name)}</span><span class="tbar"><i style="width:${(t.count / max) * 100}%"></i></span><span class="tcount">${t.count}</span></li>`
+        )
+        .join("")
       : `<li class="muted">No triggers logged yet.</li>`;
   }
 
-  // init
+  // Initial paint from any stored history.
   renderStats();
   renderInsights();
 }
